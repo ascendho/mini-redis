@@ -1,0 +1,42 @@
+# CMake build files
+cmake-build-debug/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+build.ninja
+rules.ninja
+TargetDirectories.txt
+CMakeConfigureLog.yaml
+InstallScripts.json
+Testing/
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+
+# Compiled object files
+*.o
+*.obj
+*.so
+*.dll
+*.exe
+*.out
+
+# MacOS system files
+.DS_Store
+
+# Editor files
+.idea/
+.vscode/
+
+# Documentation build artifacts
+__pycache__/
+
+# Ignore docs if generated
+/docs/_build/
+
+# Ignore all by default except source and docs
+!src/
+!docs/
