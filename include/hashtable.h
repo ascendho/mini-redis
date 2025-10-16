@@ -11,7 +11,7 @@ struct HNode {
 // 固定大小的哈希表（内部实现，用户不直接操作）
 struct HTab {
     HNode **tab = nullptr;  // 哈希桶数组
-    size_t mask = 0;        // 索引掩码（用于快速计算索引）
+    size_t mask = 0;        // 索引掩码（用于快速计算索引，mask+1 等于哈希表容量）
     size_t size = 0;        // 当前表中存储的节点总数
 };
 
