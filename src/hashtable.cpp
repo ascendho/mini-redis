@@ -4,6 +4,7 @@
 
 // n 必须是2的幂
 static void h_init(HTab *htab, size_t n) {
+    // 确保 n 是大于 0 的 2 的幂次方（如 2、4、8、16 等）
     assert(n > 0 && ((n - 1) & n) == 0);
     htab->tab = static_cast<HNode **>(calloc(n, sizeof(HNode *)));
     htab->mask = n - 1;
