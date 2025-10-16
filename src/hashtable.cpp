@@ -104,8 +104,8 @@ void hm_insert(HMap *hmap, HNode *node) {
 
     if (!hmap->older.tab) {
         // 检查是否需要重哈希
-        size_t shreshold = (hmap->newer.mask + 1) * k_max_load_factor;
-        if (hmap->newer.size >= shreshold) {
+        size_t threshold = (hmap->newer.mask + 1) * k_max_load_factor;
+        if (hmap->newer.size >= threshold) {
             hm_trigger_rehashing(hmap);
         }
     }
