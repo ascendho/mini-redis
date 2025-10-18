@@ -40,6 +40,7 @@ static HNode **h_lookup(const HTab *htab, HNode *key, bool (*eq)(HNode *, HNode 
             return from;
         }
     }
+
     return nullptr;
 }
 
@@ -73,6 +74,7 @@ static HNode *h_detach(HTab *htab, HNode **from) {
 
 static void hm_help_rehashing(HMap *hmap) {
     size_t nwork = 0;
+
     while (nwork < k_rehashing_work && hmap->older.size > 0) {
         // 寻找旧表中当前迁移位置的哈希桶（插槽）
         HNode **from = &hmap->older.tab[hmap->migrate_pos];
@@ -81,10 +83,9 @@ static void hm_help_rehashing(HMap *hmap) {
             hmap->migrate_pos++;
             continue;
         }
-
-        // 将链表的第一个节点移到新表中
-        // 从旧表（hmap->older）中移除目标节点（通过from定位），并返回被移除的节点指针。
-        // 将上一步移除的节点立即插入到新表（hmap->newer）中。
+        // 从旧表移除节点的同时，将该节点插入新表：
+        // 1. 从旧表中移除目标节点（通过 from 定位），并返回被移除的节点指针，
+        // 2. 将上一步移除的节点立即插入到新表中。
         h_insert(&hmap->newer, h_detach(&hmap->older, from));
         nwork++;
     }
@@ -96,6 +97,12 @@ static void hm_help_rehashing(HMap *hmap) {
     }
 }
 
+/*
+ * 在哈希表负载过高时，触发哈希表重哈希（扩容）。
+ * 调用时机：
+ * 当新表的负载因子（节点数 / 容量）超过阈值时，在 hm_insert 函数中触发，启动扩容流程。
+ *
+ */
 static void hm_trigger_rehashing(HMap *hmap) {
     assert(hmap->older.tab == nullptr);
     // (newer, older) <- (new_table, newer)
