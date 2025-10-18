@@ -2,7 +2,10 @@
 #include <cstdlib>
 #include "../include/hashtable.h"
 
-// n 必须是2的幂
+constexpr size_t k_rehashing_work = 128;    // 固定工作量
+constexpr size_t k_max_load_factor = 8;     // 最大负载因子
+
+// n 必须是 2 的幂
 static void h_init(HTab *htab, size_t n) {
     // 确保 n 是大于 0 的 2 的幂次方（如 2、4、8、16 等）
     assert(n > 0 && ((n - 1) & n) == 0);
@@ -40,6 +43,24 @@ static HNode **h_lookup(const HTab *htab, HNode *key, bool (*eq)(HNode *, HNode 
     return nullptr;
 }
 
+/*
+ * from（类型：HNode**）：存储「指向目标节点的指针变量的地址」
+ * 场景示例：
+ *  - 若目标是哈希桶头节点：from = &htab->tab[pos]（htab->tab[pos] 本身是指向头节点的指针）
+ *  - 若目标是链表中间节点：from = &prev->next（prev->next 本身指向目标节点）
+ *
+ * *from（类型：HNode*）：对 from 解引用一次，得到「指向目标节点的指针变量本身」
+ * 场景示例：
+ *  - 头节点场景：*from 等价于 htab->tab[pos]
+ *  - 中间节点场景：*from 等价于 prev->next
+ *
+ * **from（类型：HNode）：对 from 解引用两次，得到「目标节点本身」
+ *
+ * 关系总结：
+ * from 是「指针的地址」，*from 是「指针本身」，**from 是「指针指向的节点」
+ *
+ */
+
 // 从链表中移除节点
 static HNode *h_detach(HTab *htab, HNode **from) {
     // 目标节点
@@ -50,23 +71,24 @@ static HNode *h_detach(HTab *htab, HNode **from) {
     return node;
 }
 
-// 固定工作量
-constexpr size_t k_rehashing_work = 128;
-
 static void hm_help_rehashing(HMap *hmap) {
     size_t nwork = 0;
     while (nwork < k_rehashing_work && hmap->older.size > 0) {
-        // 寻找非空插槽
+        // 寻找旧表中当前迁移位置的哈希桶（插槽）
         HNode **from = &hmap->older.tab[hmap->migrate_pos];
-        // 空插槽
+        // 若当前哈希桶为空，跳过该位置，继续下一个
         if (!*from) {
             hmap->migrate_pos++;
             continue;
         }
+
         // 将链表的第一个节点移到新表中
+        // 从旧表（hmap->older）中移除目标节点（通过from定位），并返回被移除的节点指针。
+        // 将上一步移除的节点立即插入到新表（hmap->newer）中。
         h_insert(&hmap->newer, h_detach(&hmap->older, from));
         nwork++;
     }
+
     // 若（旧表节点）迁移完成，则释放旧表
     if (hmap->older.size == 0 && hmap->older.tab) {
         free(hmap->older.tab);
@@ -85,13 +107,13 @@ static void hm_trigger_rehashing(HMap *hmap) {
 HNode *hm_lookup(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *)) {
     hm_help_rehashing(hmap);
     HNode **from = h_lookup(&hmap->newer, key, eq);
+
     if (!from) {
         from = h_lookup(&hmap->older, key, eq);
     }
+
     return from ? *from : nullptr;
 }
-
-constexpr size_t k_max_load_factor = 8;
 
 void hm_insert(HMap *hmap, HNode *node) {
     // 若（新表）为空，则对其进行初始化
