@@ -81,9 +81,9 @@ struct HTab {
 
 // 哈希表对外接口（封装渐进式重哈希逻辑）
 struct HMap {
-    HTab newer;
-    HTab older;
-    size_t migrate_pos = 0;
+    HTab newer;                // 当前 “活跃” 的新哈希表
+    HTab older;                // 待迁移的旧哈希表
+    size_t migrate_pos = 0;    // 迁移位置指针，用于记录渐进式重哈希的进度
 };
 
 /*
@@ -111,12 +111,19 @@ struct HMap {
  *
  */
 
+/* 哈希表对外提供的核心操作接口声明 */
+
+// 在哈希表中查找与 key 匹配的节点
 HNode *hm_lookup(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *));
 
+// 向哈希表中插入一个新节点
 void hm_insert(HMap *hmap, HNode *node);
 
+// 从哈希表中删除与 key 匹配的节点
 HNode *hm_delete(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *));
 
+// 清空哈希表中所有节点，并释放占用的内存资源
 void hm_clear(HMap *hmap);
 
+// 获取哈希表中当前存储的节点总数
 size_t hm_size(const HMap *hmap);

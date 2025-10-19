@@ -2,8 +2,27 @@
 #include <cstdlib>
 #include "../include/hashtable.h"
 
-constexpr size_t k_rehashing_work = 128;    // 固定工作量
-constexpr size_t k_max_load_factor = 8;     // 最大负载因子
+/*
+ * 固定工作量，控制渐进式重哈希的单次迁移量，
+ * 避免单次操作卡顿，稳步推进旧表数据迁移。
+ *
+ */
+constexpr size_t k_rehashing_work = 128;
+
+/*
+ * 最大负载因子，限制哈希表的拥挤程度（节点数 / 容量），
+ * 防止负载过高导致哈希冲突激增、查询效率下降。
+ *
+ */
+constexpr size_t k_max_load_factor = 8;
+
+/*
+ * 代码中 static 函数的作用是：将哈希表的内部辅助操作限制在实现文件（hashtable.cpp）内，
+ * 限制可见性、隐藏细节、避免命名冲突、强化模块化；
+ * 而头文件中暴露的非 static 函数则作为简洁的对外接口，供用户使用。
+ * 这种设计是 C/C++ 中封装实现细节的典型方式。
+ *
+ */
 
 // n 必须是 2 的幂
 static void h_init(HTab *htab, size_t n) {
@@ -17,15 +36,21 @@ static void h_init(HTab *htab, size_t n) {
 // 哈希表插入操作
 static void h_insert(HTab *htab, HNode *node) {
     size_t pos = node->hcode & htab->mask;
+
+    // 头插法
     HNode *next = htab->tab[pos];
     node->next = next;
     htab->tab[pos] = node;
+
     htab->size++;
 }
 
-// 哈希表查找子程序。
-// 请注意返回值：它返回指向目标节点的前驱指针的地址，
-// 该地址可用于删除目标节点
+/*
+ * 哈希表查找函数
+ * 请注意返回值：它返回指向目标节点的前驱指针的地址，
+ * 方便后续的删除操作。
+ *
+ */
 static HNode **h_lookup(const HTab *htab, HNode *key, bool (*eq)(HNode *, HNode *)) {
     if (!htab->tab) {
         return nullptr;
@@ -35,6 +60,7 @@ static HNode **h_lookup(const HTab *htab, HNode *key, bool (*eq)(HNode *, HNode 
     // 指向目标节点的前驱指针
     HNode **from = &htab->tab[pos];
     for (HNode *cur; (cur = *from) != nullptr; from = &cur->next) {
+        // 在哈希值相等的情况下，继续确认节点内容是否真正匹配（因为哈希值可能冲突，需进一步验证）
         if (cur->hcode == key->hcode && eq(cur, key)) {
             // 可能是节点，也可能是插槽（slot）
             return from;
@@ -69,9 +95,11 @@ static HNode *h_detach(HTab *htab, HNode **from) {
     // 更新前驱节点指向目标节点
     *from = node->next;
     htab->size--;
+
     return node;
 }
 
+// 在哈希表操作（如插入、查找、删除）时，辅助完成渐进式重哈希
 static void hm_help_rehashing(HMap *hmap) {
     size_t nwork = 0;
 
@@ -111,10 +139,15 @@ static void hm_trigger_rehashing(HMap *hmap) {
     hmap->migrate_pos = 0;
 }
 
+// 支持渐进式重哈希的哈希表中查找与目标 key 匹配的节点
 HNode *hm_lookup(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *)) {
+    // 辅助推进重哈希过程
     hm_help_rehashing(hmap);
+
+    // 优先在新表中查找
     HNode **from = h_lookup(&hmap->newer, key, eq);
 
+    // 新表未找到则查旧表
     if (!from) {
         from = h_lookup(&hmap->older, key, eq);
     }
@@ -122,6 +155,7 @@ HNode *hm_lookup(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *)) {
     return from ? *from : nullptr;
 }
 
+// 将新节点插入到支持渐进式重哈希的哈希表中
 void hm_insert(HMap *hmap, HNode *node) {
     // 若（新表）为空，则对其进行初始化
     if (!hmap->newer.tab) {
@@ -131,6 +165,7 @@ void hm_insert(HMap *hmap, HNode *node) {
     // 总是插入到新表中
     h_insert(&hmap->newer, node);
 
+    // hmap->older.tab == nullptr 表示当前没有正在进行的重哈希（旧表为空）
     if (!hmap->older.tab) {
         // 检查是否需要重哈希
         size_t threshold = (hmap->newer.mask + 1) * k_max_load_factor;
@@ -143,23 +178,32 @@ void hm_insert(HMap *hmap, HNode *node) {
     hm_help_rehashing(hmap);
 }
 
+// 从支持渐进式重哈希的哈希表（HMap）中删除与目标 key 匹配的节点
 HNode *hm_delete(HMap *hmap, HNode *key, bool (*eq)(HNode *, HNode *)) {
+    // 迁移旧表中的节点到新表
     hm_help_rehashing(hmap);
+
+    // 优先在新表中查找并删除节点
     if (HNode **from = h_lookup(&hmap->newer, key, eq)) {
         return h_detach(&hmap->newer, from);
     }
+
+    // 新表未找到则在旧表中查找并删除
     if (HNode **from = h_lookup(&hmap->older, key, eq)) {
         return h_detach(&hmap->older, from);
     }
+
     return nullptr;
 }
 
+// 释放哈希表内部动态分配的内存
 void hm_clear(HMap *hmap) {
     free(hmap->newer.tab);
     free(hmap->older.tab);
     *hmap = HMap{};
 }
 
+// 返回哈希表中当前存储的节点总数
 size_t hm_size(const HMap *hmap) {
     return hmap->newer.size + hmap->older.size;
 }
