@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 // proj
-#include "hashtable.h"
+#include "hashtable.h"  // CMake 已配置 include_directories
 
 
 #define container_of(ptr, T, member) \
