@@ -1,6 +1,6 @@
 #include <cassert>
 #include <cstdlib>
-#include "../include/hashtable.h"
+#include "../include/hashtable.hpp"
 
 /*
  * 固定工作量，控制渐进式重哈希的单次迁移量，
