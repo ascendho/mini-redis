@@ -6,4 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 add_executable(code
         include/hashtable.hpp
         src/hashtable.cpp
-        src/server.cpp)
+        src/server.cpp
+        include/avl.hpp
+        src/avl.cpp)
